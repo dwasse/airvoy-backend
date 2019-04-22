@@ -1,14 +1,1 @@
-[![Build Status](https://travis-ci.org/jasofalcon/chat-ws-java.svg?branch=master)](https://travis-ci.org/jasofalcon/chat-ws-java)
-
-# chat-ws-java
-Simple web socket chat server in Java, using WebSockets 
-
-# Demo
-Server is already running on Heroku, you can check the client by visiting https://jasofalcon.github.io/chat-ws-client/
-
-## Run
-Just fire up the ChatServer.java (::main) 
-
-## Run the client
-Use this client to connect with server - https://github.com/jasofalcon/chat-ws-client
-
+Backend implementation for the airvoy platform. The server communicates with web clients via websocket updates and REST API calls that are persisted to a MySQL database.
