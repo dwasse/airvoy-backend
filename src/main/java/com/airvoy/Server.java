@@ -7,16 +7,21 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
+import java.sql.ResultSet;
 import java.util.HashSet;
 import java.util.Set;
+import org.json.simple.JSONObject;
 
 public class Server extends WebSocketServer {
 
     private final static Logger logger = LogManager.getLogger(Server.class);
+
+    private DatabaseManager databaseManager;
     private Set<WebSocket> conns;
 
-    private Server(int port) {
+    public Server(int port, DatabaseManager databaseManager) {
 	    super(new InetSocketAddress(port));
+	    this.databaseManager = databaseManager;
         conns = new HashSet<>();
     }
 
@@ -39,6 +44,22 @@ public class Server extends WebSocketServer {
     @Override
     public void onMessage(WebSocket conn, String message) {
         System.out.println("Received message " + message + " from " + conn.getRemoteSocketAddress().getHostName());
+        if (message.substring(0, 9).equals("getMarket")) {
+            try {
+                ResultSet resultSet = databaseManager.executeQuery("SELECT Price, Amount FROM Orders");
+                JSONObject jsonObject = new JSONObject();
+                while (resultSet.next()) {
+                    double price = resultSet.getDouble("Price");
+                    double amount = resultSet.getDouble("Amount");
+                    System.out.println("Got price: " + price + ", amount: " + amount);
+                    jsonObject.put(price, amount);
+                }
+                conn.send(jsonObject.toString());
+            } catch (Exception e) {
+                logger.warn("Error processing message: " + e.getMessage());
+            }
+
+        }
     }
 
     @Override
@@ -55,38 +76,6 @@ public class Server extends WebSocketServer {
         for (WebSocket sock : conns) {
             sock.send(messageJson);
         }
-    }
-
-    private void addData() {
-
-    }
-
-    public static void main(String[] args) {
-        System.out.println("Initializing database...");
-        String url = "jdbc:mysql://localhost:3306/airvoydb?useSSL=false";
-        String user = "admin";
-        String password = "admin123";
-        DatabaseManager databaseManager = new DatabaseManager(url, user, password);
-
-//        String query = "SELECT VERSION()";
-//        try (Connection con = DriverManager.getConnection(url, user, password);
-//             Statement st = con.createStatement();
-//             ResultSet rs = st.executeQuery(query)) {
-//            if (rs.next()) {
-//                System.out.println(rs.getString(1));
-//            }
-//        } catch (SQLException e) {
-//            logger.warn("Exception connecting to database: " + e.getMessage()
-//                    + ", stack trace: " + Arrays.toString(e.getStackTrace()));
-//        }
-        System.out.println("Starting server...");
-	    int port;
-        try {
-            port = Integer.parseInt(System.getenv("PORT"));
-        } catch (NumberFormatException nfe) {
-            port = 9000;
-        }
-        new Server(port).start();
     }
 
 }
