@@ -33,8 +33,25 @@ public class Order {
         this.timestamp = System.currentTimeMillis();
     }
 
+    public static Type getOrderType(String typeString) {
+        if (typeString.equals("limit")) {
+            return Type.LIMIT;
+        }
+        if (typeString.equals("market")) {
+            return Type.MARKET;
+        }
+        if (typeString.equals("syntheticMargin")) {
+            return Type.SYNTHETIC_MARGIN;
+        }
+        return null;
+    }
+
     public Market getMarket() {
         return market;
+    }
+
+    public String getSymbol() {
+        return market.getSymbol();
     }
 
     public int getSide() {

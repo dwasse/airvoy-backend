@@ -1,5 +1,10 @@
 package com.airvoy;
 
+import com.airvoy.model.Account;
+import com.airvoy.model.Market;
+import com.airvoy.model.Order;
+import com.airvoy.trading.ExchangeManager;
+import com.airvoy.trading.MatchingEngine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.java_websocket.WebSocket;
@@ -22,11 +27,13 @@ public class Server extends WebSocketServer {
     private final static Logger logger = LogManager.getLogger(Server.class);
 
     private DatabaseManager databaseManager;
+    private ExchangeManager exchangeManager;
     private Set<WebSocket> conns;
 
-    public Server(int port, DatabaseManager databaseManager) {
+    public Server(int port, DatabaseManager databaseManager, ExchangeManager exchangeManager) {
 	    super(new InetSocketAddress(port));
 	    this.databaseManager = databaseManager;
+	    this.exchangeManager = exchangeManager;
         conns = new HashSet<>();
     }
 
@@ -35,7 +42,7 @@ public class Server extends WebSocketServer {
         conns.add(webSocket);
 
         logger.info("Connection established from: " + webSocket.getRemoteSocketAddress().getHostString());
-        System.out.println("New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress());
+        logger.info("New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress());
     }
 
     @Override
@@ -43,12 +50,12 @@ public class Server extends WebSocketServer {
         conns.remove(conn);
 
         logger.info("Connection closed to: " + conn.getRemoteSocketAddress().getHostString());
-        System.out.println("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
+        logger.info("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
     }
 
     @Override
     public void onMessage(WebSocket conn, String message) {
-        System.out.println("Received message " + message + " from " + conn.getRemoteSocketAddress().getHostName());
+        logger.info("Received message " + message + " from " + conn.getRemoteSocketAddress().getHostName());
         JSONParser parser = new JSONParser();
         try {
             JSONObject receivedJson = (JSONObject) parser.parse(message);
@@ -61,7 +68,7 @@ public class Server extends WebSocketServer {
 
     private void processJson(WebSocket conn, JSONObject jsonObject) {
         if (jsonObject.containsKey("command")) {
-            System.out.println("Command: " + jsonObject.get("command").toString());
+            logger.info("Command: " + jsonObject.get("command").toString());
             switch (jsonObject.get("command").toString()) {
                 case "getMarkets":
                     ResultSet resultSet = databaseManager.executeQuery("SELECT Name, Symbol, Expiry FROM Markets");
@@ -75,14 +82,14 @@ public class Server extends WebSocketServer {
                             String marketName = resultSet.getString("Name");
                             String symbol = resultSet.getString("Symbol");
                             long expiry = resultSet.getLong("Expiry");
-                            System.out.println("Got market name: " + marketName + ", symbol: " + symbol + ", expiry: " + String.valueOf(expiry));
+                            logger.info("Got market name: " + marketName + ", symbol: " + symbol + ", expiry: " + String.valueOf(expiry));
                             contentObject.put("marketName", marketName);
                             contentObject.put("symbol", symbol);
                             contentObject.put("expiry", expiry);
                             contentArray.add(contentObject);
                         }
                         responseObject.put("content", contentArray.toString());
-                        System.out.println("Sending response: " + responseObject.toString());
+                        logger.info("Sending response: " + responseObject.toString());
                         conn.send(responseObject.toString());
                     } catch (SQLException e) {
                         logger.warn("Error generating JSON response: " + e.getMessage());
@@ -95,7 +102,7 @@ public class Server extends WebSocketServer {
                     } else {
                         logger.warn("No symbol specified for getOrderbook command");
                     }
-                    System.out.println("Processing getOrderbook command with symbol " + symbol);
+                    logger.info("Processing getOrderbook command with symbol " + symbol);
                     resultSet = databaseManager.executeQuery("SELECT Price, Amount FROM Orders WHERE Symbol= \"" + symbol + "\"");
                     contentArray = new JSONArray();
                     responseObject = new JSONObject();
@@ -106,7 +113,7 @@ public class Server extends WebSocketServer {
                             JSONObject contentObject = new JSONObject();
                             double price = resultSet.getDouble("Price");
                             double amount = resultSet.getDouble("Amount");
-                            System.out.println("Got price: " + price + ", amount: " + amount);
+                            logger.info("Got price: " + price + ", amount: " + amount);
                             contentObject.put("price", price);
                             contentObject.put("amount", amount);
                             contentArray.add(contentObject);
@@ -115,12 +122,62 @@ public class Server extends WebSocketServer {
                         contentObject.put("orders", contentArray.toString());
                         contentObject.put("symbol", symbol);
                         responseObject.put("content", contentObject);
-                        System.out.println("Sending response: " + responseObject.toString());
+                        logger.info("Sending response: " + responseObject.toString());
                         conn.send(responseObject.toString());
                     } catch (Exception e) {
                         logger.warn("Error processing message: " + e.getMessage());
                     }
                     break;
+                    //TODO: account validation
+                case "submitOrder":
+                    symbol = "";
+                    double price = 0;
+                    double amount = 0;
+                    String sideString = "";
+                    int side = 0;
+                    String username = "";
+                    String type = "";
+                    if (jsonObject.containsKey("order")) {
+                        JSONParser parser = new JSONParser();
+                        JSONObject orderObject;
+                        try {
+                            orderObject = (JSONObject) parser.parse(jsonObject.get("order").toString());
+                            logger.info("Order object: " + orderObject.toString());
+                            if (orderObject.containsKey("symbol")
+                                    && orderObject.containsKey("price")
+                                    && orderObject.containsKey("amount")
+                                    && orderObject.containsKey("type")
+                                    && orderObject.containsKey("username")
+                                    && orderObject.containsKey("side")) {
+                                symbol = orderObject.get("symbol").toString();
+                                price = (Double) orderObject.get("price");
+                                amount = (Double) orderObject.get("amount");
+                                sideString = orderObject.get("side").toString();
+                                if (sideString.equals("buy")) {
+                                    side = 1;
+                                } else if (sideString.equals("sell")) {
+                                    side = -1;
+                                } else {
+                                    logger.warn("Invalid side for order: " + sideString);
+                                    break;
+                                }
+                                username = orderObject.get("username").toString();
+                                type = orderObject.get("type").toString();
+                                logger.info("Processing submitOrder with symbol " + symbol + ", price " + String.valueOf(price)
+                                        + ", amount " + String.valueOf(amount) + ", type " + type);
+                                Market market = new Market(symbol, databaseManager);
+                                Account account = new Account(username);
+                                Order order = new Order(market, side, price, amount, account, Order.getOrderType(type));
+                                exchangeManager.submitOrder(order);
+                            } else {
+                                logger.warn("Malformed order submission: " + orderObject.toString());
+                            }
+                        } catch (ParseException e) {
+                            logger.warn("Error parsing order object: " + jsonObject.toString());
+                        }
+                    } else {
+                        logger.warn("Malformed order submission: " + jsonObject.toString());
+                    }
             }
         }
     }

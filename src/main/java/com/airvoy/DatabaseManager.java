@@ -38,7 +38,7 @@ public class DatabaseManager {
         executeStatement("CREATE TABLE Markets(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Name VARCHAR(100), Symbol VARCHAR(5), Expiry BIGINT, CreationTime BIGINT);");
         executeStatement("CREATE TABLE Orders(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Symbol VARCHAR(5), Type VARCHAR(20), Price DOUBLE, Amount DOUBLE, OrderTime BIGINT);");
         executeStatement("CREATE TABLE Trades(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Maker VARCHAR(20), Taker VARCHAR(20), Price DOUBLE, Amount DOUBLE, Fee DOUBLE, TradeTime BIGINT);");
-        System.out.println("Initialized database.");
+        logger.info("Initialized database.");
 
         // Add bootstrap data
         long currentTime = System.currentTimeMillis();
@@ -51,7 +51,7 @@ public class DatabaseManager {
         addOrder(entryCount, "TRUMP", "limit", .5, -1, currentTime);
         addOrder(entryCount, "TRUMP", "limit", .6, -1.5, currentTime);
         addTrade(entryCount, "user1", "user2", .5, .5, 0, currentTime);
-        System.out.println("Added initial data.");
+        logger.info("Added initial data.");
     }
 
     private void addUser(String username, double balance, long creationTime) {
@@ -79,14 +79,14 @@ public class DatabaseManager {
         String command = "INSERT INTO Trades(Id, Maker, Taker, Price, Amount, Fee, TradeTime) VALUES("
                 + String.valueOf(id) + ", \"" + maker + "\", \"" + taker + "\", " + String.valueOf(price) + ", "
                 + String.valueOf(amount) + ", " + String.valueOf(fee) + ", " + String.valueOf(timestamp) + ")";
-        System.out.println("Command: " + command);
+        logger.info("Command: " + command);
         executeStatement(command);
     }
 
     public ResultSet executeQuery(String query) {
         try {
             PreparedStatement statement = connection.prepareStatement(query);
-            System.out.println("Executed query: " + query);
+            logger.info("Executed query: " + query);
             return statement.executeQuery();
         } catch (Exception e) {
             logger.warn("Exception executing statement: " + e.getMessage());
@@ -98,7 +98,7 @@ public class DatabaseManager {
         try {
             PreparedStatement statement = connection.prepareStatement(command);
             statement.executeUpdate();
-            System.out.println("Executed statement: " + command);
+            logger.info("Executed statement: " + command);
         } catch (Exception e) {
             logger.warn("Exception executing statement: " + e.getMessage());
         }
@@ -106,7 +106,7 @@ public class DatabaseManager {
     }
 
     private void connect() throws Exception {
-        System.out.println("Connecting to db: " + url);
+        logger.info("Connecting to db: " + url);
         connection = DriverManager.getConnection(url, user, password);
     }
 

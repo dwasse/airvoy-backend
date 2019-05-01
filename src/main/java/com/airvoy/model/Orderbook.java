@@ -15,6 +15,7 @@ public class Orderbook {
     private double bestBid = 0;
     private double bestAsk = 1;
 
+    //Represent levels as basis points
     public Orderbook(Market market, QueuePriority queuePriority) {
         this.market = market;
         this.queuePriority = queuePriority;
