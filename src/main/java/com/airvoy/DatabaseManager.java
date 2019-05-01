@@ -35,8 +35,8 @@ public class DatabaseManager {
         executeStatement("USE airvoydb;");
         executeStatement("DROP TABLE IF EXISTS Users, Markets, Orders, Trades;");
         executeStatement("CREATE TABLE Users(Username VARCHAR(20) PRIMARY KEY, Balance DOUBLE, CreationTime BIGINT);");
-        executeStatement("CREATE TABLE Markets(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Name VARCHAR(100), Expiry BIGINT, CreationTime BIGINT);");
-        executeStatement("CREATE TABLE Orders(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Type VARCHAR(20), Price DOUBLE, Amount DOUBLE, OrderTime BIGINT);");
+        executeStatement("CREATE TABLE Markets(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Name VARCHAR(100), Symbol VARCHAR(5), Expiry BIGINT, CreationTime BIGINT);");
+        executeStatement("CREATE TABLE Orders(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Symbol VARCHAR(5), Type VARCHAR(20), Price DOUBLE, Amount DOUBLE, OrderTime BIGINT);");
         executeStatement("CREATE TABLE Trades(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Maker VARCHAR(20), Taker VARCHAR(20), Price DOUBLE, Amount DOUBLE, Fee DOUBLE, TradeTime BIGINT);");
         System.out.println("Initialized database.");
 
@@ -45,11 +45,11 @@ public class DatabaseManager {
         addUser("user1", 1.23124, currentTime);
         addUser("user2", 3.1234, currentTime);
         addUser("user3", 2.123, currentTime);
-        addMarket(entryCount, "trump-impeachment-2020", (currentTime + (86400000 * 365)), currentTime);
-        addOrder(entryCount, "limit", .4, 1, currentTime);
-        addOrder(entryCount, "limit", .2, 3, currentTime);
-        addOrder(entryCount, "limit", .5, -1, currentTime);
-        addOrder(entryCount, "limit", .6, -1.5, currentTime);
+        addMarket(entryCount, "trump-impeachment-2020", "TRUMP", (currentTime + (86400000 * 365)), currentTime);
+        addOrder(entryCount, "TRUMP", "limit", .4, 1, currentTime);
+        addOrder(entryCount, "TRUMP", "limit", .2, 3, currentTime);
+        addOrder(entryCount, "TRUMP", "limit", .5, -1, currentTime);
+        addOrder(entryCount, "TRUMP", "limit", .6, -1.5, currentTime);
         addTrade(entryCount, "user1", "user2", .5, .5, 0, currentTime);
         System.out.println("Added initial data.");
     }
@@ -61,16 +61,16 @@ public class DatabaseManager {
         executeStatement(command);
     }
 
-    public void addMarket(int id, String name, long expiry, long creationTime) {
-        String command = "INSERT INTO Markets(Id, Name, Expiry, CreationTime) VALUES("
-                + String.valueOf(id) + ", \"" + name + "\", " + String.valueOf(expiry) + ", "
+    public void addMarket(int id, String name, String symbol, long expiry, long creationTime) {
+        String command = "INSERT INTO Markets(Id, Name, Symbol, Expiry, CreationTime) VALUES("
+                + String.valueOf(id) + ", \"" + name + "\", \"" + symbol + "\", " + String.valueOf(expiry) + ", "
                 + String.valueOf(creationTime) + ")";
         executeStatement(command);
     }
 
-    private void addOrder(int id, String type, double price, double amount, long timestamp) {
-        String command = "INSERT INTO Orders(Id, Type, Price, Amount, OrderTime) VALUES("
-                + String.valueOf(id) + ", \"" + type + "\", " + String.valueOf(price) + ", "
+    private void addOrder(int id, String symbol, String type, double price, double amount, long timestamp) {
+        String command = "INSERT INTO Orders(Id, Symbol, Type, Price, Amount, OrderTime) VALUES("
+                + String.valueOf(id) + ", \"" + symbol + "\", \"" + type + "\", " + String.valueOf(price) + ", "
                 + String.valueOf(amount) + ", " + String.valueOf(timestamp) + ")";
         executeStatement(command);
     }
