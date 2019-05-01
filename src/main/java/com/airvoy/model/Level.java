@@ -5,10 +5,10 @@ import java.util.*;
 public class Level {
 
     private Map<String, Order> orders = new HashMap<>();
-    private final double price;
+    private final int price;
     private Integer side;
 
-    public Level(double price) {
+    public Level(int price) {
         this.price = 0;
     }
 

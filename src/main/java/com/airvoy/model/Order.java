@@ -1,8 +1,14 @@
 package com.airvoy.model;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONObject;
+
 import java.util.UUID;
 
 public class Order {
+
+    private final static Logger logger = LogManager.getLogger(Order.class);
 
     public enum Type {
         LIMIT, MARKET, SYNTHETIC_MARGIN
@@ -46,6 +52,18 @@ public class Order {
         return null;
     }
 
+    @Override
+    public String toString() {
+        JSONObject orderJson = new JSONObject();
+        orderJson.put("symbol", getSymbol());
+        orderJson.put("price", getPrice());
+        orderJson.put("amount", getAmount());
+        orderJson.put("type", getTypeString());
+        orderJson.put("timestamp", getTimestamp());
+        orderJson.put("id", getId());
+        return orderJson.toString();
+    }
+
     public Market getMarket() {
         return market;
     }
@@ -78,6 +96,18 @@ public class Order {
         return type;
     }
 
+    public String getTypeString() {
+        switch (getType()) {
+            case LIMIT:
+                return "limit";
+            case MARKET:
+                return "market";
+            case SYNTHETIC_MARGIN:
+                return "syntheticMargin";
+        }
+        return null;
+    }
+
     public String getId() {
         return id;
     }
@@ -100,6 +130,11 @@ public class Order {
 
     public void setFilled(boolean isFilled) {
         filled = isFilled;
+    }
+
+    public void setPrice(double newPrice) {
+        logger.info("Setting price " + price + " to new price " + newPrice);
+        price = newPrice;
     }
 
 }

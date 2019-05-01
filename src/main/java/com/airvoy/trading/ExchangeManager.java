@@ -5,11 +5,14 @@ import com.airvoy.model.Market;
 import com.airvoy.model.Order;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.java_websocket.WebSocket;
+import org.json.simple.JSONObject;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class ExchangeManager {
 
@@ -17,10 +20,15 @@ public class ExchangeManager {
 
     private DatabaseManager databaseManager;
     private Map<String, MatchingEngine> matchingEngineMap = new HashMap<>();
+    private Set<WebSocket> connections;
 
     public ExchangeManager(DatabaseManager databaseManager) {
         this.databaseManager = databaseManager;
         generateMatchingEngines();
+    }
+
+    public void setConnections(Set<WebSocket> connections) {
+        this.connections = connections;
     }
 
     private void generateMatchingEngines() {
@@ -64,7 +72,21 @@ public class ExchangeManager {
             logger.warn("Could not process order: " + order.toString());
             return false;
         }
+        broadcastNewOrder(order);
         return true;
+    }
+
+    // Broadcast new order to websocket connections
+    public void broadcastNewOrder(Order order) {
+        logger.info("Broadcasting new order: " + order.toString());
+        if (connections.size() > 0) {
+            for (WebSocket connection : connections) {
+                JSONObject orderJson = new JSONObject();
+                orderJson.put("messageType", "newOrder");
+                orderJson.put("content", order.toString());
+                connection.send(orderJson.toString());
+            }
+        }
     }
 
 }

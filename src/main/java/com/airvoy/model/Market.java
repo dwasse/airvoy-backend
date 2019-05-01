@@ -22,7 +22,7 @@ public class Market {
     private long expiry;
     private String symbol;
     private String description;
-    private final double tickSize = .005;
+    private final int tickSize = 5; // Basis points
     private final double makerFee = -.005;
     private final double takerFee = .01;
 
@@ -56,7 +56,7 @@ public class Market {
         return id;
     }
 
-    public double getTickSize() {
+    public int getTickSize() {
         return tickSize;
     }
 

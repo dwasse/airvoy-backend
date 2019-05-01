@@ -4,7 +4,6 @@ import com.airvoy.model.Account;
 import com.airvoy.model.Market;
 import com.airvoy.model.Order;
 import com.airvoy.trading.ExchangeManager;
-import com.airvoy.trading.MatchingEngine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.java_websocket.WebSocket;
@@ -28,18 +27,19 @@ public class Server extends WebSocketServer {
 
     private DatabaseManager databaseManager;
     private ExchangeManager exchangeManager;
-    private Set<WebSocket> conns;
+    private Set<WebSocket> connections;
 
     public Server(int port, DatabaseManager databaseManager, ExchangeManager exchangeManager) {
 	    super(new InetSocketAddress(port));
 	    this.databaseManager = databaseManager;
 	    this.exchangeManager = exchangeManager;
-        conns = new HashSet<>();
+        connections = new HashSet<>();
+        exchangeManager.setConnections(connections);
     }
 
     @Override
     public void onOpen(WebSocket webSocket, ClientHandshake clientHandshake) {
-        conns.add(webSocket);
+        connections.add(webSocket);
 
         logger.info("Connection established from: " + webSocket.getRemoteSocketAddress().getHostString());
         logger.info("New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress());
@@ -47,7 +47,7 @@ public class Server extends WebSocketServer {
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-        conns.remove(conn);
+        connections.remove(conn);
 
         logger.info("Connection closed to: " + conn.getRemoteSocketAddress().getHostString());
         logger.info("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
@@ -185,7 +185,7 @@ public class Server extends WebSocketServer {
     @Override
     public void onError(WebSocket conn, Exception ex) {
         if (conn != null) {
-            conns.remove(conn);
+            connections.remove(conn);
         }
         assert conn != null;
         logger.warn("Error detected: " + ex.getMessage() + ", stack trace: " + Arrays.toString(ex.getStackTrace()));
@@ -193,7 +193,7 @@ public class Server extends WebSocketServer {
 
     private void broadcastMessage(String msg) {
         String messageJson = msg;
-        for (WebSocket sock : conns) {
+        for (WebSocket sock : connections) {
             sock.send(messageJson);
         }
     }
