@@ -37,7 +37,7 @@ public class Orderbook {
     }
 
     public Level getLevel(double price) {
-        return levels.get(price);
+        return levels.get(getIntPrice(price));
     }
 
     private int getIntPrice(double price) {

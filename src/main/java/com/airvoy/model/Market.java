@@ -2,6 +2,7 @@ package com.airvoy.model;
 
 import com.airvoy.DatabaseManager;
 import com.airvoy.Server;
+import com.airvoy.model.utils.LoggerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -11,13 +12,14 @@ import java.util.UUID;
 
 public class Market {
 
-    private final static Logger logger = LogManager.getLogger(Market.class);
+    private final static LoggerFactory logger = new LoggerFactory("Market");
 
     public enum Outcomes {
         LONG, SHORT;
     }
 
     private final String id;
+    private long creationTime;
     private String name;
     private long expiry;
     private String symbol;
@@ -33,6 +35,7 @@ public class Market {
         this.symbol = symbol;
         this.expiry = expiry;
         this.id = UUID.randomUUID().toString();
+        this.creationTime = System.currentTimeMillis();
     }
 
     public Market(String symbol, DatabaseManager databaseManager) {
@@ -48,6 +51,10 @@ public class Market {
         }
     }
 
+    public String getName() {
+        return name;
+    }
+
     public String getSymbol() {
         return symbol;
     }
@@ -56,8 +63,16 @@ public class Market {
         return id;
     }
 
+    public long getCreationTime() {
+        return creationTime;
+    }
+
     public int getTickSize() {
         return tickSize;
+    }
+
+    public long getExpiry() {
+        return expiry;
     }
 
     public double getMakerFee() {

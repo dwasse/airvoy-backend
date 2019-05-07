@@ -3,6 +3,7 @@ package com.airvoy.trading;
 import com.airvoy.DatabaseManager;
 import com.airvoy.model.Market;
 import com.airvoy.model.Order;
+import com.airvoy.model.utils.LoggerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.java_websocket.WebSocket;
@@ -10,17 +11,15 @@ import org.json.simple.JSONObject;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class ExchangeManager {
 
-    private final static Logger logger = LogManager.getLogger(ExchangeManager.class);
+    private final static LoggerFactory logger = new LoggerFactory("ExchangeManager");
 
     private DatabaseManager databaseManager;
     private Map<String, MatchingEngine> matchingEngineMap = new HashMap<>();
-    private Set<WebSocket> connections;
+    private Set<WebSocket> connections = new HashSet<>();
 
     public ExchangeManager(DatabaseManager databaseManager) {
         this.databaseManager = databaseManager;
@@ -28,7 +27,7 @@ public class ExchangeManager {
     }
 
     public void setConnections(Set<WebSocket> connections) {
-        this.connections = connections;
+        this.connections.addAll(connections);
     }
 
     private void generateMatchingEngines() {
@@ -62,29 +61,31 @@ public class ExchangeManager {
         return null;
     }
 
-    public boolean submitOrder(Order order) {
+    public boolean submitOrder(Order order, boolean broadcast) {
         logger.info("Getting matching engine for " + order.getSymbol());
         MatchingEngine matchingEngine = getMatchingEngine(order.getSymbol());
         logger.info("Got matching engine for " + order.getSymbol());
         try {
-            matchingEngine.processOrder(order);
+            Set<JSONObject> updates = matchingEngine.processOrder(order);
+            if (broadcast && updates.size() > 0) {
+                broadcastUpdates(updates);
+            }
         } catch (Exception e) {
-            logger.warn("Could not process order: " + order.toString());
+            logger.warn("Could not process order " + order.toString() + ": " + e.getMessage()
+                    + ", stack trace: " + Arrays.toString(e.getStackTrace()));
             return false;
         }
-        broadcastNewOrder(order);
         return true;
     }
 
     // Broadcast new order to websocket connections
-    public void broadcastNewOrder(Order order) {
-        logger.info("Broadcasting new order: " + order.toString());
+    public void broadcastUpdates(Set<JSONObject> updates) {
+        logger.info("Broadcasting updates: " + updates.toString());
         if (connections.size() > 0) {
             for (WebSocket connection : connections) {
-                JSONObject orderJson = new JSONObject();
-                orderJson.put("messageType", "newOrder");
-                orderJson.put("content", order.toString());
-                connection.send(orderJson.toString());
+                for (JSONObject update : updates) {
+                    connection.send(update.toString());
+                }
             }
         }
     }

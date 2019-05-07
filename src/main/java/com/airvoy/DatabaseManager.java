@@ -1,5 +1,9 @@
 package com.airvoy;
 
+import com.airvoy.model.Market;
+import com.airvoy.model.Order;
+import com.airvoy.model.Trade;
+import com.airvoy.model.utils.LoggerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -10,7 +14,7 @@ import java.sql.ResultSet;
 
 public class DatabaseManager {
 
-    private final static Logger logger = LogManager.getLogger(DatabaseManager.class);
+    private final static LoggerFactory logger = new LoggerFactory("DatabaseManager");
 
     private final String url;
     private final String user;
@@ -33,52 +37,59 @@ public class DatabaseManager {
         connect();
 
         executeStatement("USE airvoydb;");
-        executeStatement("DROP TABLE IF EXISTS Users, Markets, Orders, Trades;");
-        executeStatement("CREATE TABLE Users(Username VARCHAR(20) PRIMARY KEY, Balance DOUBLE, CreationTime BIGINT);");
-        executeStatement("CREATE TABLE Markets(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Name VARCHAR(100), Symbol VARCHAR(5), Expiry BIGINT, CreationTime BIGINT);");
-        executeStatement("CREATE TABLE Orders(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Symbol VARCHAR(5), Type VARCHAR(20), Price DOUBLE, Amount DOUBLE, OrderTime BIGINT);");
-        executeStatement("CREATE TABLE Trades(Id BIGINT PRIMARY KEY AUTO_INCREMENT, Maker VARCHAR(20), Taker VARCHAR(20), Price DOUBLE, Amount DOUBLE, Fee DOUBLE, TradeTime BIGINT);");
+        executeStatement("DROP TABLE IF EXISTS Users, Markets, OrderUpdates, Orderbooks, Trades;");
+        executeStatement("CREATE TABLE Users(Username VARCHAR(20) PRIMARY KEY, Balance DOUBLE, " +
+                "CreationTime BIGINT);");
+        executeStatement("CREATE TABLE Markets(Id VARCHAR(100) PRIMARY KEY, Name VARCHAR(100), " +
+                "Symbol VARCHAR(5), Expiry BIGINT, CreationTime BIGINT);");
+        executeStatement("CREATE TABLE OrderUpdates(SequenceNumber BIGINT PRIMARY KEY AUTO_INCREMENT, " +
+                "Id VARCHAR(100), Username VARCHAR(100), Symbol VARCHAR(5), Type VARCHAR(20), Price DOUBLE, " +
+                "Amount DOUBLE, OrderTime BIGINT);");
+        executeStatement("CREATE TABLE Orderbooks(Id VARCHAR(100) PRIMARY KEY, Symbol VARCHAR(100), " +
+                "Username VARCHAR(100), Price DOUBLE, Amount DOUBLE)");
+        executeStatement("CREATE TABLE Trades(Id VARCHAR(100) PRIMARY KEY, Maker VARCHAR(20), " +
+                "Taker VARCHAR(20), Price DOUBLE, Amount DOUBLE, Fee DOUBLE, TradeTime BIGINT);");
         logger.info("Initialized database.");
-
-        // Add bootstrap data
-        long currentTime = System.currentTimeMillis();
-        addUser("user1", 1.23124, currentTime);
-        addUser("user2", 3.1234, currentTime);
-        addUser("user3", 2.123, currentTime);
-        addMarket(entryCount, "trump-impeachment-2020", "TRUMP", (currentTime + (86400000 * 365)), currentTime);
-        addOrder(entryCount, "TRUMP", "limit", .4, 1, currentTime);
-        addOrder(entryCount, "TRUMP", "limit", .2, 3, currentTime);
-        addOrder(entryCount, "TRUMP", "limit", .5, -1, currentTime);
-        addOrder(entryCount, "TRUMP", "limit", .6, -1.5, currentTime);
-        addTrade(entryCount, "user1", "user2", .5, .5, 0, currentTime);
-        logger.info("Added initial data.");
     }
 
-    private void addUser(String username, double balance, long creationTime) {
+    public void addUser(String username, double balance, long creationTime) {
         String command = "INSERT INTO Users(Username, Balance, CreationTime) VALUES(\""
                 + username + "\", " + String.valueOf(balance) + ", " + String.valueOf(creationTime)
                 + ")";
         executeStatement(command);
     }
 
-    public void addMarket(int id, String name, String symbol, long expiry, long creationTime) {
+    public void addMarket(Market market) {
         String command = "INSERT INTO Markets(Id, Name, Symbol, Expiry, CreationTime) VALUES("
-                + String.valueOf(id) + ", \"" + name + "\", \"" + symbol + "\", " + String.valueOf(expiry) + ", "
-                + String.valueOf(creationTime) + ")";
+                + "\"" + market.getId() + "\", \"" + market.getName() + "\", \"" + market.getSymbol() + "\", "
+                + String.valueOf(market.getExpiry()) + ", " + String.valueOf(market.getCreationTime()) + ")";
+        logger.info("Market command: " + command);
         executeStatement(command);
     }
 
-    private void addOrder(int id, String symbol, String type, double price, double amount, long timestamp) {
-        String command = "INSERT INTO Orders(Id, Symbol, Type, Price, Amount, OrderTime) VALUES("
-                + String.valueOf(id) + ", \"" + symbol + "\", \"" + type + "\", " + String.valueOf(price) + ", "
-                + String.valueOf(amount) + ", " + String.valueOf(timestamp) + ")";
+    public void addOrderUpdate(Order order) {
+        String command = "INSERT INTO OrderUpdates(Id, Username, Symbol, Type, Price, Amount, OrderTime) VALUES("
+                + "\"" + order.getId() + "\", \"" + order.getAccount().getUsername() + "\", \"" + order.getSymbol()
+                + "\", \"" + order.getTypeString() + "\", " + String.valueOf(order.getPrice()) + ", "
+                + String.valueOf(order.getSide() * order.getAmount()) + ", "
+                + String.valueOf(order.getTimestamp()) + ")";
         executeStatement(command);
+        logger.info("Executed orderbook update command: " + command);
+        command = "INSERT INTO Orderbooks (Id, Username, Symbol, Price, Amount) VALUES("
+                + "\"" + order.getId() + "\", \"" + order.getAccount().getUsername() + "\", \"" + order.getSymbol()
+                + "\", " + String.valueOf(order.getPrice()) + ", " + String.valueOf(order.getAmount())
+                + ") ON DUPLICATE KEY UPDATE Price=" + String.valueOf(order.getPrice())
+                + ", Amount=" + String.valueOf(order.getSide() * order.getAmount());
+        executeStatement(command);
+        logger.info("Executed orderbook command: " + command);
     }
 
-    private void addTrade(int id, String maker, String taker, double price, double amount, double fee, long timestamp) {
+    public void addTrade(Trade trade) {
         String command = "INSERT INTO Trades(Id, Maker, Taker, Price, Amount, Fee, TradeTime) VALUES("
-                + String.valueOf(id) + ", \"" + maker + "\", \"" + taker + "\", " + String.valueOf(price) + ", "
-                + String.valueOf(amount) + ", " + String.valueOf(fee) + ", " + String.valueOf(timestamp) + ")";
+                + "\"" + trade.getId() + "\", \"" + trade.getMakerAccount().getUsername() + "\", \""
+                + trade.getTakerAccount().getUsername() + "\", " + String.valueOf(trade.getPrice()) + ", "
+                + String.valueOf(trade.getAmount()) + ", " + String.valueOf(trade.getFee()) + ", "
+                + String.valueOf(trade.getTimestamp()) + ")";
         logger.info("Command: " + command);
         executeStatement(command);
     }

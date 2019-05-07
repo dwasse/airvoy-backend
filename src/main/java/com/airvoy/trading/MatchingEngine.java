@@ -1,12 +1,15 @@
 package com.airvoy.trading;
 
 import com.airvoy.model.*;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.airvoy.model.utils.LoggerFactory;
+import org.json.simple.JSONObject;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class MatchingEngine {
 
-    private final static Logger logger = LogManager.getLogger(MatchingEngine.class);
+    private final static LoggerFactory logger = new LoggerFactory("MatchingEngine");
 
     private final Market market;
     private final Orderbook orderbook;
@@ -16,45 +19,55 @@ public class MatchingEngine {
         this.orderbook = new Orderbook(market, Orderbook.QueuePriority.PRO_RATA);
     }
 
-    public void processOrder(Order order) throws Exception {
-        double price = order.getPrice();
+    public Set<JSONObject> processOrder(Order order) throws Exception {
+        Set<JSONObject> updates = new HashSet<>();
         if (order.getType().equals(Order.Type.LIMIT)) {
-            processLimitOrder(order);
+            updates.addAll(processLimitOrder(order));
         } else if (order.getType().equals(Order.Type.MARKET)) {
-            processMarketOrder(order);
+            updates.addAll(processMarketOrder(order));
         } else if (order.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
-            processSyntheticMarginOrder(order);
+            updates.addAll(processSyntheticMarginOrder(order));
         } else {
             throw new Exception("Invalid order type: " + order.getType());
         }
+        return updates;
     }
 
-    public void processLimitOrder(Order order) {
+    public Set<JSONObject> processLimitOrder(Order order) {
+        Set<JSONObject> updates = new HashSet<>();
         if (order.getSide() == Order.BUY) {
+            logger.info("Processing buy limit order " + order.getId() + ", best ask: " + orderbook.getBestAsk());
             // Match orders
-            while (order.getPrice() >= orderbook.getBestAsk()) {
+            while (order.getPrice() >= orderbook.getBestAsk() && order.getAmount() > 0) {
+                logger.info("Order price " + order.getPrice() + " to match against best ask price " + orderbook.getBestAsk());
                 Level currentLevel = orderbook.getLevel(orderbook.getBestAsk());
                 double totalAmount = currentLevel.getTotalAmount();
+                logger.info("Order amount: " + order.getAmount() + ", total amount: " + totalAmount);
                 if (order.getAmount() >= totalAmount) {
                     // Match with entire level
                     for (Order makerOrder : currentLevel.getOrders()) {
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
                                 makerOrder.getAmount(), makerOrder, order));
                         makerOrder.fill(makerOrder.getAmount());
+                        updates.add(getOrderUpdateJson(makerOrder));
                     }
                     order.setAmount(order.getAmount() - totalAmount);
                 } else {
+                    logger.info("Processing pro-rata matching");
                     // Pro-rata matching
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        logger.info("Matching against maker order " + makerOrder.toString());
                         double amount = order.getAmount() / totalAmount;
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
                                 order));
                         makerOrder.fill(amount);
+                        updates.add(getOrderUpdateJson(makerOrder));
                     }
                 }
             }
             // Add remainder to book
             if (order.getAmount() > 0) {
+                logger.info("Adding remainder " + order.getAmount());
                 try {
                     orderbook.addOrder(order);
                 } catch (Exception e) {
@@ -73,6 +86,7 @@ public class MatchingEngine {
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
                                 makerOrder.getAmount(), makerOrder, order));
                         makerOrder.fill(makerOrder.getAmount());
+                        updates.add(getOrderUpdateJson(makerOrder));
                     }
                     order.setAmount(order.getAmount() - totalAmount);
                 } else {
@@ -82,6 +96,7 @@ public class MatchingEngine {
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
                                 order));
                         makerOrder.fill(amount);
+                        updates.add(getOrderUpdateJson(makerOrder));
                     }
                 }
             }
@@ -89,15 +104,17 @@ public class MatchingEngine {
             if (order.getAmount() > 0) {
                 try {
                     orderbook.addOrder(order);
+                    updates.add(getOrderUpdateJson(order));
                 } catch (Exception e) {
                     logger.warn("Exception adding order to book: " + e.getMessage());
                 }
-
             }
         }
+        return updates;
     }
 
-    private void processMarketOrder(Order order) {
+    private Set<JSONObject> processMarketOrder(Order order) {
+        Set<JSONObject> updates = new HashSet<>();
         if (order.getSide() == Order.BUY) {
             // Match orders
             while (order.getAmount() > 0) {
@@ -151,13 +168,24 @@ public class MatchingEngine {
                 }
             }
         }
+        return updates;
     }
 
-    private void  processSyntheticMarginOrder(Order order) {
+    private JSONObject getOrderUpdateJson(Order order) {
+        JSONObject orderJson = new JSONObject();
+        orderJson.put("messageType", "orderUpdate");
+        orderJson.put("content", order.toString());
+        return orderJson;
+    }
+
+    private Set<JSONObject>  processSyntheticMarginOrder(Order order) {
+        Set<JSONObject> updates = new HashSet<>();
         //TODO: implement
+        return updates;
     }
 
     public void processTrade(Trade trade) {
+        logger.info("Processing trade: " + trade.toString());
         Account makerAccount = trade.getMakerAccount();
         Account takerAccount = trade.getTakerAccount();
         updateAccount(makerAccount, trade.getAmount(), trade.getPrice(), -trade.getSide());

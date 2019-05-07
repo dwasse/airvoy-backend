@@ -1,5 +1,7 @@
 package com.airvoy.model;
 
+import com.airvoy.DatabaseManager;
+import com.airvoy.model.utils.LoggerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
@@ -8,7 +10,7 @@ import java.util.UUID;
 
 public class Order {
 
-    private final static Logger logger = LogManager.getLogger(Order.class);
+    private final static LoggerFactory logger = new LoggerFactory("Order");
 
     public enum Type {
         LIMIT, MARKET, SYNTHETIC_MARGIN
@@ -39,6 +41,17 @@ public class Order {
         this.timestamp = System.currentTimeMillis();
     }
 
+    public Order(String id, Market market, int side, double price, double amount, Account account, Type type) {
+        this.market = market;
+        this.side = side;
+        this.price = price;
+        this.amount = amount;
+        this.account = account;
+        this.type = type;
+        this.id = id;
+        this.timestamp = System.currentTimeMillis();
+    }
+
     public static Type getOrderType(String typeString) {
         if (typeString.equals("limit")) {
             return Type.LIMIT;
@@ -57,7 +70,7 @@ public class Order {
         JSONObject orderJson = new JSONObject();
         orderJson.put("symbol", getSymbol());
         orderJson.put("price", getPrice());
-        orderJson.put("amount", getAmount());
+        orderJson.put("amount", getSide() * getAmount());
         orderJson.put("type", getTypeString());
         orderJson.put("timestamp", getTimestamp());
         orderJson.put("id", getId());

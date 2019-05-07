@@ -3,6 +3,7 @@ package com.airvoy;
 import com.airvoy.model.Account;
 import com.airvoy.model.Market;
 import com.airvoy.model.Order;
+import com.airvoy.model.utils.LoggerFactory;
 import com.airvoy.trading.ExchangeManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,7 +24,7 @@ import org.json.simple.parser.ParseException;
 
 public class Server extends WebSocketServer {
 
-    private final static Logger logger = LogManager.getLogger(Server.class);
+    private final static LoggerFactory logger = new LoggerFactory("Server");
 
     private DatabaseManager databaseManager;
     private ExchangeManager exchangeManager;
@@ -48,9 +49,7 @@ public class Server extends WebSocketServer {
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
         connections.remove(conn);
-
-        logger.info("Connection closed to: " + conn.getRemoteSocketAddress().getHostString());
-        logger.info("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress());
+        logger.info("Connection closed");
     }
 
     @Override
@@ -103,7 +102,7 @@ public class Server extends WebSocketServer {
                         logger.warn("No symbol specified for getOrderbook command");
                     }
                     logger.info("Processing getOrderbook command with symbol " + symbol);
-                    resultSet = databaseManager.executeQuery("SELECT Price, Amount FROM Orders WHERE Symbol= \"" + symbol + "\"");
+                    resultSet = databaseManager.executeQuery("SELECT Id, Price, Amount FROM Orderbooks WHERE Symbol= \"" + symbol + "\"");
                     contentArray = new JSONArray();
                     responseObject = new JSONObject();
                     responseObject.put("messageType", "getOrderbook");
@@ -111,9 +110,11 @@ public class Server extends WebSocketServer {
                     try {
                         while (resultSet.next()) {
                             JSONObject contentObject = new JSONObject();
+                            String id = resultSet.getString("Id");
                             double price = resultSet.getDouble("Price");
                             double amount = resultSet.getDouble("Amount");
-                            logger.info("Got price: " + price + ", amount: " + amount);
+                            logger.info("Got id: " + id + ", price: " + price + ", amount: " + amount);
+                            contentObject.put("id", id);
                             contentObject.put("price", price);
                             contentObject.put("amount", amount);
                             contentArray.add(contentObject);
@@ -168,7 +169,7 @@ public class Server extends WebSocketServer {
                                 Market market = new Market(symbol, databaseManager);
                                 Account account = new Account(username);
                                 Order order = new Order(market, side, price, amount, account, Order.getOrderType(type));
-                                exchangeManager.submitOrder(order);
+                                exchangeManager.submitOrder(order, true);
                             } else {
                                 logger.warn("Malformed order submission: " + orderObject.toString());
                             }
