@@ -6,6 +6,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.UUID;
 
 public class Order {
@@ -50,6 +52,22 @@ public class Order {
         this.type = type;
         this.id = id;
         this.timestamp = System.currentTimeMillis();
+    }
+
+    public static Order fromId(DatabaseManager databaseManager, String id) {
+        ResultSet resultSet = databaseManager.executeQuery("SELECT Symbol, Price, Amount, Username, Type FROM Orderbooks WHERE Id= \"" + id + "\"");
+        try {
+            resultSet.next();
+            Market market = Market.fromSymbol(databaseManager, resultSet.getString("Symbol"));
+            double price = resultSet.getDouble("Price");
+            double amount = resultSet.getDouble("Amount");
+            Account account = new Account(resultSet.getString("Username"));
+            Type type = getOrderType(resultSet.getString("Type"));
+            return new Order(id, market, (int) Math.signum(amount), price, Math.abs(amount), account, type);
+        } catch (SQLException e) {
+            logger.warn("Exception querying for market info: " + e.getMessage());
+        }
+        return null;
     }
 
     public static Type getOrderType(String typeString) {

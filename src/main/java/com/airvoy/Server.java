@@ -166,7 +166,7 @@ public class Server extends WebSocketServer {
                                 type = orderObject.get("type").toString();
                                 logger.info("Processing submitOrder with symbol " + symbol + ", price " + String.valueOf(price)
                                         + ", amount " + String.valueOf(amount) + ", type " + type);
-                                Market market = new Market(symbol, databaseManager);
+                                Market market = Market.fromSymbol(databaseManager, symbol);
                                 Account account = new Account(username);
                                 Order order = new Order(market, side, price, amount, account, Order.getOrderType(type));
                                 exchangeManager.submitOrder(order, true);

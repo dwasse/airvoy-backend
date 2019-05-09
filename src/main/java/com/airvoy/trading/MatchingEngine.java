@@ -1,10 +1,12 @@
 package com.airvoy.trading;
 
+import com.airvoy.DatabaseManager;
 import com.airvoy.model.*;
 import com.airvoy.model.utils.LoggerFactory;
 import org.json.simple.JSONObject;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class MatchingEngine {
@@ -12,11 +14,29 @@ public class MatchingEngine {
     private final static LoggerFactory logger = new LoggerFactory("MatchingEngine");
 
     private final Market market;
+    private final DatabaseManager databaseManager;
     private final Orderbook orderbook;
+    private Map<String, MatchingEngine> matchingEngineMap;
 
-    public MatchingEngine(Market market) {
+    public MatchingEngine(Market market, DatabaseManager databaseManager) {
         this.market = market;
+        this.databaseManager = databaseManager;
         this.orderbook = new Orderbook(market, Orderbook.QueuePriority.PRO_RATA);
+    }
+
+    public void setMatchingEnginePointers(Map<String, MatchingEngine> matchingEngineMap) {
+        this.matchingEngineMap = matchingEngineMap;
+    }
+
+    public void preprocessSyntheticMargin(Order order) {
+        for (String id : order.getAccount().getSyntheticMarginOrders()) {
+            Order syntheticOrder = Order.fromId(databaseManager, id);
+            try {
+                matchingEngineMap.get(syntheticOrder.getSymbol()).cancelOrder(syntheticOrder);
+            } catch (Exception e) {
+                logger.warn("Error cancelling synthetic margin order: " + syntheticOrder.toString());
+            }
+        }
     }
 
     public Set<JSONObject> processOrder(Order order) throws Exception {
@@ -46,6 +66,9 @@ public class MatchingEngine {
                 if (order.getAmount() >= totalAmount) {
                     // Match with entire level
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
                                 makerOrder.getAmount(), makerOrder, order));
                         makerOrder.fill(makerOrder.getAmount());
@@ -56,6 +79,9 @@ public class MatchingEngine {
                     logger.info("Processing pro-rata matching");
                     // Pro-rata matching
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
                         logger.info("Matching against maker order " + makerOrder.toString());
                         double amount = order.getAmount() / totalAmount;
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
@@ -126,6 +152,9 @@ public class MatchingEngine {
                 if (order.getAmount() >= totalAmount) {
                     // Match with entire level
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
                                 makerOrder.getAmount(), makerOrder, order));
                         makerOrder.fill(makerOrder.getAmount());
@@ -134,6 +163,9 @@ public class MatchingEngine {
                 } else {
                     // Pro-rata matching
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
                         double amount = order.getAmount() / totalAmount;
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
                                 order));
@@ -152,6 +184,9 @@ public class MatchingEngine {
                 if (order.getAmount() >= totalAmount) {
                     // Match with entire level
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
                                 makerOrder.getAmount(), makerOrder, order));
                         makerOrder.fill(makerOrder.getAmount());
@@ -160,6 +195,9 @@ public class MatchingEngine {
                 } else {
                     // Pro-rata matching
                     for (Order makerOrder : currentLevel.getOrders()) {
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
                         double amount = order.getAmount() / totalAmount;
                         processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
                                 order));
@@ -181,6 +219,14 @@ public class MatchingEngine {
     private Set<JSONObject>  processSyntheticMarginOrder(Order order) {
         Set<JSONObject> updates = new HashSet<>();
         //TODO: implement
+        return updates;
+    }
+
+    private Set<JSONObject> cancelOrder(Order order) throws Exception {
+        Set<JSONObject> updates = new HashSet<>();
+        orderbook.removeOrder(order.getId(), order.getPrice());
+        order.setAmount(0);
+        updates.add(getOrderUpdateJson(order));
         return updates;
     }
 

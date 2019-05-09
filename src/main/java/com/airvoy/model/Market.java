@@ -38,17 +38,25 @@ public class Market {
         this.creationTime = System.currentTimeMillis();
     }
 
-    public Market(String symbol, DatabaseManager databaseManager) {
+    public Market(String name, String symbol, long expiry, String id) {
+        this.name = name;
         this.symbol = symbol;
-        this.id = UUID.randomUUID().toString();
-        ResultSet resultSet = databaseManager.executeQuery("SELECT Name, Expiry FROM Markets WHERE Symbol= \"" + symbol + "\"");
+        this.expiry = expiry;
+        this.id = id;
+    }
+
+    public static Market fromSymbol(DatabaseManager databaseManager, String symbol) {
+        ResultSet resultSet = databaseManager.executeQuery("SELECT Id, Name, Expiry FROM Markets WHERE Symbol= \"" + symbol + "\"");
         try {
             resultSet.next();
-            this.name = resultSet.getString("Name");
-            this.expiry = resultSet.getLong("Expiry");
+            String id = resultSet.getString("Id");
+            String name = resultSet.getString("Name");
+            long expiry = resultSet.getLong("Expiry");
+            return new Market(name, symbol, expiry);
         } catch (SQLException e) {
             logger.warn("Exception querying for market info: " + e.getMessage());
         }
+        return null;
     }
 
     public String getName() {

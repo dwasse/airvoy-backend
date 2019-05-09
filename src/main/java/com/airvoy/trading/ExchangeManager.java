@@ -27,7 +27,7 @@ public class ExchangeManager {
     }
 
     public void setConnections(Set<WebSocket> connections) {
-        this.connections.addAll(connections);
+        this.connections = connections;
     }
 
     private void generateMatchingEngines() {
@@ -37,17 +37,20 @@ public class ExchangeManager {
                 String marketName = resultSet.getString("Name");
                 String symbol = resultSet.getString("Symbol");
                 long expiry = resultSet.getLong("Expiry");
-                matchingEngineMap.put(symbol, new MatchingEngine(new Market(marketName, symbol, expiry)));
+                matchingEngineMap.put(symbol, new MatchingEngine(new Market(marketName, symbol, expiry), databaseManager));
             }
         } catch (SQLException e) {
             logger.warn("Error generating JSON response: " + e.getMessage());
+        }
+        for (MatchingEngine matchingEngine: matchingEngineMap.values()) {
+            matchingEngine.setMatchingEnginePointers(matchingEngineMap);
         }
     }
 
     public void generateMatchingEngine(String symbol) {
         if (!matchingEngineMap.containsKey(symbol)) {
-            Market market = new Market(symbol, databaseManager);
-            matchingEngineMap.put(symbol, new MatchingEngine(market));
+            Market market = Market.fromSymbol(databaseManager, symbol);
+            matchingEngineMap.put(symbol, new MatchingEngine(market, databaseManager));
         } else {
             logger.warn("Matching engine already present for symbol " + symbol);
         }
@@ -85,8 +88,11 @@ public class ExchangeManager {
             for (WebSocket connection : connections) {
                 for (JSONObject update : updates) {
                     connection.send(update.toString());
+                    logger.info("Broadcasting update: " + update.toString());
                 }
             }
+        } else {
+            logger.info("No connections found!");
         }
     }
 

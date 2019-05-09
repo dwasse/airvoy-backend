@@ -56,7 +56,7 @@ public class Main {
     }
 
     public static void addInitialOrders(DatabaseManager databaseManager, ExchangeManager exchangeManager) {
-        Market market = new Market("TRUMP", databaseManager);
+        Market market = Market.fromSymbol(databaseManager, "TRUMP");
         Account user1 = new Account("user1");
         Order newOrder;
         newOrder = new Order(market, Order.BUY, .4, 1, user1, Order.Type.LIMIT);

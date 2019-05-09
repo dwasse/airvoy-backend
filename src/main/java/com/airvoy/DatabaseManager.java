@@ -77,7 +77,7 @@ public class DatabaseManager {
         logger.info("Executed orderbook update command: " + command);
         command = "INSERT INTO Orderbooks (Id, Username, Symbol, Price, Amount) VALUES("
                 + "\"" + order.getId() + "\", \"" + order.getAccount().getUsername() + "\", \"" + order.getSymbol()
-                + "\", " + String.valueOf(order.getPrice()) + ", " + String.valueOf(order.getAmount())
+                + "\", " + String.valueOf(order.getPrice()) + ", " + String.valueOf(order.getSide() * order.getAmount())
                 + ") ON DUPLICATE KEY UPDATE Price=" + String.valueOf(order.getPrice())
                 + ", Amount=" + String.valueOf(order.getSide() * order.getAmount());
         executeStatement(command);
