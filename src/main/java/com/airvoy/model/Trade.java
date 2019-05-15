@@ -30,11 +30,12 @@ public class Trade {
 
     @Override
     public String toString() {
-        JSONObject orderJson = new JSONObject();
-        orderJson.put("price", getPrice());
-        orderJson.put("amount", getAmount());
-        orderJson.put("id", getId());
-        return orderJson.toString();
+        JSONObject tradeJson = new JSONObject();
+        tradeJson.put("timestamp", getTimestamp());
+        tradeJson.put("price", getPrice());
+        tradeJson.put("amount", getSide() * getAmount());
+        tradeJson.put("id", getId());
+        return tradeJson.toString();
     }
 
     public Account getMakerAccount() {

@@ -88,12 +88,13 @@ public class ExchangeManager {
             for (WebSocket connection : connections) {
                 for (JSONObject update : updates) {
                     connection.send(update.toString());
-                    logger.info("Broadcasting update: " + update.toString());
+                    logger.info("Broadcasting update to " + connection.getRemoteSocketAddress().getHostString() + ": " + update.toString());
                 }
             }
         } else {
             logger.info("No connections found!");
         }
+        logger.info("Done broadcasting.");
     }
 
 }

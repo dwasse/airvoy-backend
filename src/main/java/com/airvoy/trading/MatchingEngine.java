@@ -54,6 +54,7 @@ public class MatchingEngine {
     }
 
     public Set<JSONObject> processLimitOrder(Order order) {
+        logger.info("Processing limit order: " + order.toString());
         Set<JSONObject> updates = new HashSet<>();
         if (order.getSide() == Order.BUY) {
             logger.info("Processing buy limit order " + order.getId() + ", best ask: " + orderbook.getBestAsk());
@@ -69,9 +70,10 @@ public class MatchingEngine {
                         if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
                             preprocessSyntheticMargin(makerOrder);
                         }
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
-                                makerOrder.getAmount(), makerOrder, order));
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
+                                makerOrder.getAmount(), makerOrder, order)));
                         makerOrder.fill(makerOrder.getAmount());
+                        order.fill(totalAmount);
                         updates.add(getOrderUpdateJson(makerOrder));
                     }
                     order.setAmount(order.getAmount() - totalAmount);
@@ -83,10 +85,11 @@ public class MatchingEngine {
                             preprocessSyntheticMargin(makerOrder);
                         }
                         logger.info("Matching against maker order " + makerOrder.toString());
-                        double amount = order.getAmount() / totalAmount;
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
-                                order));
+                        double amount = order.getAmount() * (makerOrder.getAmount() / totalAmount);
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
+                                order)));
                         makerOrder.fill(amount);
+                        order.fill(amount);
                         updates.add(getOrderUpdateJson(makerOrder));
                     }
                 }
@@ -102,26 +105,36 @@ public class MatchingEngine {
 
             }
         } else if (order.getSide() == Order.SELL) {
+            logger.info("Processing sell limit order " + order.getId() + ", best ask: " + orderbook.getBestAsk());
             // Match orders
-            while (order.getPrice() <= orderbook.getBestBid()) {
+            while (order.getPrice() <= orderbook.getBestBid() && order.getAmount() > 0) {
+                logger.info("Order price " + order.getPrice() + " to match against best ask price " + orderbook.getBestAsk());
                 Level currentLevel = orderbook.getLevel(orderbook.getBestBid());
                 double totalAmount = currentLevel.getTotalAmount();
+                logger.info("Order amount: " + order.getAmount() + ", total amount: " + totalAmount);
                 if (order.getAmount() >= totalAmount) {
                     // Match with entire level
                     for (Order makerOrder : currentLevel.getOrders()) {
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
-                                makerOrder.getAmount(), makerOrder, order));
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
+                                makerOrder.getAmount(), makerOrder, order)));
                         makerOrder.fill(makerOrder.getAmount());
+                        order.fill(totalAmount);
                         updates.add(getOrderUpdateJson(makerOrder));
                     }
                     order.setAmount(order.getAmount() - totalAmount);
                 } else {
+                    logger.info("Processing pro-rata matching");
                     // Pro-rata matching
                     for (Order makerOrder : currentLevel.getOrders()) {
-                        double amount = order.getAmount() / totalAmount;
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
-                                order));
+                        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+                            preprocessSyntheticMargin(makerOrder);
+                        }
+                        logger.info("Matching against maker order " + makerOrder.toString());
+                        double amount = order.getAmount() * (makerOrder.getAmount() / totalAmount);
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
+                                order)));
                         makerOrder.fill(amount);
+                        order.fill(amount);
                         updates.add(getOrderUpdateJson(makerOrder));
                     }
                 }
@@ -155,8 +168,8 @@ public class MatchingEngine {
                         if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
                             preprocessSyntheticMargin(makerOrder);
                         }
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
-                                makerOrder.getAmount(), makerOrder, order));
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
+                                makerOrder.getAmount(), makerOrder, order)));
                         makerOrder.fill(makerOrder.getAmount());
                     }
                     order.setAmount(order.getAmount() - totalAmount);
@@ -167,8 +180,8 @@ public class MatchingEngine {
                             preprocessSyntheticMargin(makerOrder);
                         }
                         double amount = order.getAmount() / totalAmount;
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
-                                order));
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
+                                order)));
                         makerOrder.fill(amount);
                     }
                 }
@@ -187,8 +200,8 @@ public class MatchingEngine {
                         if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
                             preprocessSyntheticMargin(makerOrder);
                         }
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
-                                makerOrder.getAmount(), makerOrder, order));
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
+                                makerOrder.getAmount(), makerOrder, order)));
                         makerOrder.fill(makerOrder.getAmount());
                     }
                     order.setAmount(order.getAmount() - totalAmount);
@@ -199,8 +212,8 @@ public class MatchingEngine {
                             preprocessSyntheticMargin(makerOrder);
                         }
                         double amount = order.getAmount() / totalAmount;
-                        processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
-                                order));
+                        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(), amount, makerOrder,
+                                order)));
                         makerOrder.fill(amount);
                     }
                 }
@@ -213,6 +226,13 @@ public class MatchingEngine {
         JSONObject orderJson = new JSONObject();
         orderJson.put("messageType", "orderUpdate");
         orderJson.put("content", order.toString());
+        return orderJson;
+    }
+
+    private JSONObject getNewTradeJson(Trade trade) {
+        JSONObject orderJson = new JSONObject();
+        orderJson.put("messageType", "newTrade");
+        orderJson.put("content", trade.toString());
         return orderJson;
     }
 
@@ -230,12 +250,15 @@ public class MatchingEngine {
         return updates;
     }
 
-    public void processTrade(Trade trade) {
+    public Set<JSONObject> processTrade(Trade trade) {
+        Set<JSONObject> updates = new HashSet<>();
         logger.info("Processing trade: " + trade.toString());
         Account makerAccount = trade.getMakerAccount();
         Account takerAccount = trade.getTakerAccount();
         updateAccount(makerAccount, trade.getAmount(), trade.getPrice(), -trade.getSide());
         updateAccount(takerAccount, trade.getAmount(), trade.getPrice(), trade.getSide());
+        updates.add(getNewTradeJson(trade));
+        return updates;
     }
 
     public void updateAccount(Account account, double amount, double price, int side) {
