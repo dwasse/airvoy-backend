@@ -138,6 +138,7 @@ public class Server extends WebSocketServer {
                     int side = 0;
                     String username = "";
                     String type = "";
+                    logger.info("Processing order submission json: " + jsonObject.toJSONString());
                     if (jsonObject.containsKey("order")) {
                         JSONParser parser = new JSONParser();
                         JSONObject orderObject;

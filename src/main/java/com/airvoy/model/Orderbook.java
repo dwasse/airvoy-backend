@@ -1,5 +1,7 @@
 package com.airvoy.model;
 
+import com.airvoy.model.utils.LoggerFactory;
+
 import java.util.*;
 
 public class Orderbook {
@@ -7,6 +9,8 @@ public class Orderbook {
     public enum QueuePriority {
         PRO_RATA, FIFO;
     }
+
+    private final static LoggerFactory logger = new LoggerFactory("Orderbook");
 
     private Market market;
     private SortedMap<Integer, Level> levels = new TreeMap<>();
@@ -24,7 +28,11 @@ public class Orderbook {
         int currentLevel = 0;
         while (currentLevel < 1000) {
             currentLevel += tickSize;
-            levels.put(currentLevel, new Level(currentLevel));
+            if (queuePriority.equals(QueuePriority.PRO_RATA)) {
+                levels.put(currentLevel, new LevelProRata(currentLevel));
+            } else if (queuePriority.equals(QueuePriority.FIFO)) {
+                levels.put(currentLevel, new LevelFIFO(currentLevel));
+            }
         }
     }
 
@@ -58,8 +66,10 @@ public class Orderbook {
             level.addOrder(order);
             if (order.getSide() == Order.BUY && (bestBid == 0 || price > bestBid)) {
                 bestBid = price;
+                logger.info("Added new best bid: " + bestBid);
             } else if (order.getSide() == Order.SELL && (bestAsk == 1 || price < bestBid)) {
                 bestAsk = price;
+                logger.info("Added new best ask: " + bestAsk);
             }
         } else {
             throw new Exception("Cannot add order to level if sides do not match");
@@ -81,6 +91,7 @@ public class Orderbook {
                         currentLevel -= tickSize;
                         if (levels.get(currentLevel).getNumOrders() > 0) {
                             bestBid = currentLevel;
+                            logger.info("Updated best bid to " + bestBid);
                             return;
                         }
                         bestBid = 0;
@@ -91,6 +102,7 @@ public class Orderbook {
                         currentLevel += tickSize;
                         if (levels.get(currentLevel).getNumOrders() > 0) {
                             bestAsk = currentLevel;
+                            logger.info("Updated best ask to " + bestAsk);
                             return;
                         }
                         bestAsk = 1;

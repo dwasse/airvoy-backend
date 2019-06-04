@@ -5,6 +5,7 @@ import com.airvoy.model.*;
 import com.airvoy.model.utils.LoggerFactory;
 import org.json.simple.JSONObject;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -16,12 +17,15 @@ public class MatchingEngine {
     private final Market market;
     private final DatabaseManager databaseManager;
     private final Orderbook orderbook;
+    private final Orderbook.QueuePriority queuePriority = Orderbook.QueuePriority.FIFO;
     private Map<String, MatchingEngine> matchingEngineMap;
+
+    public static double MIN_TRADE_AMOUNT = .001;
 
     public MatchingEngine(Market market, DatabaseManager databaseManager) {
         this.market = market;
         this.databaseManager = databaseManager;
-        this.orderbook = new Orderbook(market, Orderbook.QueuePriority.PRO_RATA);
+        this.orderbook = new Orderbook(market, queuePriority);
     }
 
     public void setMatchingEnginePointers(Map<String, MatchingEngine> matchingEngineMap) {
@@ -53,7 +57,100 @@ public class MatchingEngine {
         return updates;
     }
 
+    public void fillLevel(Order order, Set<JSONObject> updates, Level level) throws Exception {
+        logger.info("Filling order " + order.toString() + " with level " + level.getPrice());
+        Order makerOrder = level.getFirstOrder();
+        logger.info("Maker order string type: " + makerOrder.getTypeString());
+        logger.info("Maker order type: " + makerOrder.getType());
+        if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {
+            preprocessSyntheticMargin(makerOrder);
+        }
+        logger.info("Filling maker order: " + makerOrder.toString());
+        if (Math.abs(order.getAmount()) >= Math.abs(makerOrder.getAmount())) {
+            level.removeOrder(makerOrder.getId());
+            logger.info("Fully removed maker order " + makerOrder.getId() + " from level " + level.getPrice());
+            updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
+                    makerOrder.getAmount(), makerOrder, order)));
+            makerOrder.fill(makerOrder.getAmount());
+            order.fill(makerOrder.getAmount());
+            updates.add(getOrderUpdateJson(makerOrder));
+            return;
+        }
+        logger.info("Partially filled maker order " + makerOrder.getId() + " from level " + level.getPrice());
+        updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
+                order.getAmount(), makerOrder, order)));
+        makerOrder.fill(order.getAmount());
+        logger.info("Order amount before fill: " + order.getAmount());
+        order.fill(order.getAmount());
+        logger.info("Order amount after fill: " + order.getAmount());
+        logger.info("Maker order amount after fill: " + makerOrder.getAmount());
+        updates.add(getOrderUpdateJson(makerOrder));
+    }
+
     public Set<JSONObject> processLimitOrder(Order order) {
+        logger.info("Processing FIFO limit order: " + order.toString());
+        Set<JSONObject> updates = new HashSet<>();
+        if (order.getSide() == Order.BUY) {
+            logger.info("Processing buy limit order " + order.getId() + ", best ask: " + orderbook.getBestAsk());
+            // Match orders
+            try {
+                while (order.getPrice() >= orderbook.getBestAsk() && order.getAmount() > MIN_TRADE_AMOUNT) {
+                    logger.info("Order price " + order.getPrice() + " to match against best ask price " + orderbook.getBestAsk());
+                    Level currentLevel = orderbook.getLevel(orderbook.getBestAsk());
+                    logger.info("Order amount before fillLevel:" + order.getAmount());
+                    fillLevel(order, updates, currentLevel);
+                    logger.info("Order amount after fillLevel:" + order.getAmount());
+                    Order firstOrder = currentLevel.getFirstOrder();
+                    if (firstOrder != null) {
+                        logger.info("Best order amount after fillLevel: " + currentLevel.getFirstOrder().getAmount());
+                    } else {
+                        logger.info("First order is null");
+                    }
+
+                }
+            } catch (Exception e) {
+                logger.warn("Exception while filling order " + order.toString() + ": " + e.getMessage()
+                        + ", stack trace: " + Arrays.toString(e.getStackTrace()));
+            }
+            // Add remainder to book
+            if (order.getAmount() > MIN_TRADE_AMOUNT) {
+                logger.info("Adding remainder " + order.getAmount());
+                try {
+                    orderbook.addOrder(order);
+                    updates.add(getOrderUpdateJson(order));
+                } catch (Exception e) {
+                    logger.warn("Exception adding order " + order.toString() + " to book: " + e.getMessage()
+                            + ", stack trace: " + Arrays.toString(e.getStackTrace()));
+                }
+            }
+        } else if (order.getSide() == Order.SELL) {
+            logger.info("Processing sell limit order " + order.getId() + ", best bid: " + orderbook.getBestBid());
+            // Match orders
+            try {
+                while (order.getPrice() <= orderbook.getBestBid() && order.getAmount() > MIN_TRADE_AMOUNT) {
+                    logger.info("Order price " + order.getPrice() + " to match against best bid price " + orderbook.getBestBid());
+                    Level currentLevel = orderbook.getLevel(orderbook.getBestBid());
+                    fillLevel(order, updates, currentLevel);
+                }
+            } catch (Exception e) {
+                logger.warn("Exception while filling order " + order.toString() + ": " + e.getMessage()
+                        + ", stack trace: " + Arrays.toString(e.getStackTrace()));
+            }
+            // Add remainder to book
+            if (Math.abs(order.getAmount()) > MIN_TRADE_AMOUNT) {
+                try {
+                    orderbook.addOrder(order);
+                    updates.add(getOrderUpdateJson(order));
+                } catch (Exception e) {
+                    logger.warn("Exception adding order " + order.toString() + " to book: " + e.getMessage()
+                            + ", stack trace: " + Arrays.toString(e.getStackTrace()));
+                }
+            }
+        }
+        return updates;
+    }
+
+    public Set<JSONObject> processLimitProRata(Order order) {
         logger.info("Processing limit order: " + order.toString());
         Set<JSONObject> updates = new HashSet<>();
         if (order.getSide() == Order.BUY) {

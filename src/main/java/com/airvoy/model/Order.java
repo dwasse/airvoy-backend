@@ -2,6 +2,7 @@ package com.airvoy.model;
 
 import com.airvoy.DatabaseManager;
 import com.airvoy.model.utils.LoggerFactory;
+import com.airvoy.trading.MatchingEngine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
@@ -95,6 +96,18 @@ public class Order {
         return orderJson.toString();
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (!Order.class.isAssignableFrom(obj.getClass())) {
+            return false;
+        }
+        final Order other = (Order) obj;
+        return this.id.equals(other.id);
+    }
+
     public Market getMarket() {
         return market;
     }
@@ -154,7 +167,7 @@ public class Order {
     public void fill(double fillAmount) {
         filledAmount += fillAmount;
         amount -= fillAmount;
-        if (amount == 0) {
+        if (amount < MatchingEngine.MIN_TRADE_AMOUNT) {
             setFilled(true);
         }
     }

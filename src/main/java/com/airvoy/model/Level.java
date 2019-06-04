@@ -1,53 +1,27 @@
 package com.airvoy.model;
 
-import java.util.*;
+import java.util.HashSet;
 
-public class Level {
+public interface Level {
 
-    private Map<String, Order> orders = new HashMap<>();
-    private final int price;
-    private Integer side;
+    HashSet<Order> getOrders();
 
-    public Level(int price) {
-        this.price = 0;
-    }
+    Integer getSide();
 
-    public HashSet<Order> getOrders() {
-        return new HashSet<>(orders.values());
-    }
+    Orderbook.QueuePriority getPriority();
 
-    public Integer getSide() {
-        return side;
-    }
+    int getPrice();
 
-    public int getNumOrders() {
-        return orders.size();
-    }
+    int getNumOrders();
 
-    public double getTotalAmount() {
-        double totalAmount = 0;
-        for (Order order : orders.values()) {
-            totalAmount += order.getAmount();
-        }
-        return totalAmount;
-    }
+    Order getFirstOrder();
 
-    public void setSide(Integer newSide) {
-        side = newSide;
-    }
+    double getTotalAmount();
 
-    public void addOrder(Order order) throws Exception {
-        orders.put(order.getId(), order);
-    }
+    void setSide(Integer newSide);
 
-    public void removeOrder(String id) throws Exception {
-        if (orders.containsKey(id)) {
-            orders.remove(id);
-        } else {
-            throw new Exception("Id " + id + " not found in level " + price);
-        }
-    }
+    void addOrder(Order order) throws Exception;
 
-
+    void removeOrder(String id) throws Exception;
 
 }
