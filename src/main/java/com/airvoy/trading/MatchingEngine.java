@@ -60,6 +60,10 @@ public class MatchingEngine {
     public void fillLevel(Order order, Set<JSONObject> updates, Level level) throws Exception {
         logger.info("Filling order " + order.toString() + " with level " + level.getPrice());
         Order makerOrder = level.getFirstOrder();
+        if (makerOrder == null) {
+            logger.warn("Maker order is null for level " + level.getPrice());
+            return;
+        }
         logger.info("Maker order string type: " + makerOrder.getTypeString());
         logger.info("Maker order type: " + makerOrder.getType());
         if (makerOrder.getType().equals(Order.Type.SYNTHETIC_MARGIN)) {

@@ -67,7 +67,7 @@ public class Orderbook {
             if (order.getSide() == Order.BUY && (bestBid == 0 || price > bestBid)) {
                 bestBid = price;
                 logger.info("Added new best bid: " + bestBid);
-            } else if (order.getSide() == Order.SELL && (bestAsk == 1 || price < bestBid)) {
+            } else if (order.getSide() == Order.SELL && (bestAsk == 1 || price < bestAsk)) {
                 bestAsk = price;
                 logger.info("Added new best ask: " + bestAsk);
             }
@@ -82,7 +82,6 @@ public class Orderbook {
             Level level = levels.get(intPrice);
             level.removeOrder(id);
             int side = level.getSide();
-            level.setSide(null);
             if (level.getNumOrders() == 0) {
                 // Need to reset best bid/ask
                 if (side == Order.BUY) {
