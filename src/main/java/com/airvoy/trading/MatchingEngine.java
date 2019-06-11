@@ -58,7 +58,11 @@ public class MatchingEngine {
     }
 
     public void fillLevel(Order order, Set<JSONObject> updates, Level level) throws Exception {
-        logger.info("Filling order " + order.toString() + " with level " + level.getPrice());
+        logger.info("Filling order " + order.toString());
+        logger.info("Orderbook: " + orderbook.toString());
+        if (level != null) {
+            logger.info( "Level " + level.getPrice());
+        }
         Order makerOrder = level.getFirstOrder();
         if (makerOrder == null) {
             logger.warn("Maker order is null for level " + level.getPrice());
@@ -71,12 +75,12 @@ public class MatchingEngine {
         }
         logger.info("Filling maker order: " + makerOrder.toString());
         if (Math.abs(order.getAmount()) >= Math.abs(makerOrder.getAmount())) {
-            level.removeOrder(makerOrder.getId());
+            orderbook.removeOrder(makerOrder.getId(), makerOrder.getPrice(), makerOrder.getSide());
             logger.info("Fully removed maker order " + makerOrder.getId() + " from level " + level.getPrice());
             updates.addAll(processTrade(new Trade(market, order.getSide(), makerOrder.getPrice(),
                     makerOrder.getAmount(), makerOrder, order)));
-            makerOrder.fill(makerOrder.getAmount());
             order.fill(makerOrder.getAmount());
+            makerOrder.fill(makerOrder.getAmount());
             updates.add(getOrderUpdateJson(makerOrder));
             return;
         }
@@ -98,7 +102,8 @@ public class MatchingEngine {
             logger.info("Processing buy limit order " + order.getId() + ", best ask: " + orderbook.getBestAsk());
             // Match orders
             try {
-                while (order.getPrice() >= orderbook.getBestAsk() && order.getAmount() > MIN_TRADE_AMOUNT) {
+                while (Orderbook.getIntPrice(order.getPrice()) >= orderbook.getBestAsk()
+                        && order.getAmount() > MIN_TRADE_AMOUNT) {
                     logger.info("Order price " + order.getPrice() + " to match against best ask price " + orderbook.getBestAsk());
                     Level currentLevel = orderbook.getLevel(orderbook.getBestAsk());
                     logger.info("Order amount before fillLevel:" + order.getAmount());
@@ -110,7 +115,6 @@ public class MatchingEngine {
                     } else {
                         logger.info("First order is null");
                     }
-
                 }
             } catch (Exception e) {
                 logger.warn("Exception while filling order " + order.toString() + ": " + e.getMessage()
@@ -131,7 +135,8 @@ public class MatchingEngine {
             logger.info("Processing sell limit order " + order.getId() + ", best bid: " + orderbook.getBestBid());
             // Match orders
             try {
-                while (order.getPrice() <= orderbook.getBestBid() && order.getAmount() > MIN_TRADE_AMOUNT) {
+                while (Orderbook.getIntPrice(order.getPrice()) <= orderbook.getBestBid()
+                        && order.getAmount() > MIN_TRADE_AMOUNT) {
                     logger.info("Order price " + order.getPrice() + " to match against best bid price " + orderbook.getBestBid());
                     Level currentLevel = orderbook.getLevel(orderbook.getBestBid());
                     fillLevel(order, updates, currentLevel);
@@ -345,7 +350,7 @@ public class MatchingEngine {
 
     private Set<JSONObject> cancelOrder(Order order) throws Exception {
         Set<JSONObject> updates = new HashSet<>();
-        orderbook.removeOrder(order.getId(), order.getPrice());
+        orderbook.removeOrder(order.getId(), order.getPrice(), order.getSide());
         order.setAmount(0);
         updates.add(getOrderUpdateJson(order));
         return updates;

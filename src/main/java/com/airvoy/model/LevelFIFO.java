@@ -1,5 +1,7 @@
 package com.airvoy.model;
 
+import com.airvoy.model.utils.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -7,10 +9,12 @@ import java.util.PriorityQueue;
 
 public class LevelFIFO implements Level {
 
+    private final static LoggerFactory logger = new LoggerFactory("LevelFIFO");
+
     private Map<String, Order> orders = new HashMap<>();
     private PriorityQueue<Order> orderQueue = new PriorityQueue<>((a,b) -> (int) (a.getTimestamp() - b.getTimestamp()));
     private final int price;
-    private Integer side;
+    private Integer side = null;
     private final Orderbook.QueuePriority queuePriority = Orderbook.QueuePriority.FIFO;
 
     public LevelFIFO(int price) {
@@ -18,10 +22,16 @@ public class LevelFIFO implements Level {
     }
 
     public Order getFirstOrder() {
+        logger.info("Getting first order with order queue: " + orderQueue.toString());
         if (orderQueue.size() > 0) {
             return orderQueue.peek();
         }
         return null;
+    }
+
+    @Override
+    public String toString() {
+        return "LevelFIFO with price " + price + ", side " + side;
     }
 
     public Orderbook.QueuePriority getPriority() {
@@ -59,14 +69,23 @@ public class LevelFIFO implements Level {
     public void addOrder(Order order) throws Exception {
         orders.put(order.getId(), order);
         orderQueue.add(order);
+        if (side == null) {
+            setSide(order.getSide());
+        }
     }
 
     public void removeOrder(String id) throws Exception {
+        logger.info("Removing order " + id + " from level " + price);
+        logger.info("Number of orders in queue before remove: " + orderQueue.size());
         if (orders.containsKey(id)) {
             orders.remove(id);
             orderQueue.removeIf(o -> o.getId().equals(id));
         } else {
             throw new Exception("Id " + id + " not found in level " + price);
+        }
+        logger.info("Number of orders in queue after remove: " + orderQueue.size());
+        if (getNumOrders() == 0) {
+            setSide(null);
         }
     }
 
