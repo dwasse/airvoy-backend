@@ -10,7 +10,6 @@ public class Account {
     private String username;
     private double balance = 0;
     private Map<String, Double> positions = new HashMap<>();
-    private Set<String> syntheticMarginOrders = new HashSet<>();
 
     public Account(String username) {
         this.username = username;
@@ -26,10 +25,6 @@ public class Account {
 
     public double getPosition(Market market) {
         return positions.getOrDefault(market.getId(), (double) 0);
-    }
-
-    public Set<String> getSyntheticMarginOrders() {
-        return syntheticMarginOrders;
     }
 
     public void updatePosition(Market market, double positionChange) {

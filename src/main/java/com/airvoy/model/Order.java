@@ -16,7 +16,7 @@ public class Order {
     private final static LoggerFactory logger = new LoggerFactory("Order");
 
     public enum Type {
-        LIMIT, MARKET, SYNTHETIC_MARGIN
+        LIMIT, MARKET
     }
 
     public static Integer BUY = 1;
@@ -77,9 +77,6 @@ public class Order {
         }
         if (typeString.equals("market")) {
             return Type.MARKET;
-        }
-        if (typeString.equals("syntheticMargin")) {
-            return Type.SYNTHETIC_MARGIN;
         }
         return null;
     }
@@ -146,8 +143,6 @@ public class Order {
                 return "limit";
             case MARKET:
                 return "market";
-            case SYNTHETIC_MARGIN:
-                return "syntheticMargin";
         }
         return null;
     }
